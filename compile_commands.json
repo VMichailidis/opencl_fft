@@ -1,0 +1,24 @@
+[
+ {
+  "directory": "/home/basil/scratchback/vortex-container/container/vortex/build/tests/opencl/small_fft",
+  "arguments": [
+   "g++",
+   "-std=c++17",
+   "-Wall",
+   "-Wextra",
+   "-Wfatal-errors",
+   "-Wno-deprecated-declarations",
+   "-Wno-unused-parameter",
+   "-Wno-narrowing",
+   "-pthread",
+   "-I/home/basil/scratchback/vortex-container/container/root/tools/pocl/include",
+   "-O2",
+   "-DNDEBUG",
+   "-MM",
+   "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/small_fft/main.cc",
+   ".depend"
+  ],
+  "file": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/small_fft/main.cc"
+ }
+]
+
