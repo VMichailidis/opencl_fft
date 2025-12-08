@@ -2,6 +2,7 @@
 #include <CL/opencl.h>
 #include <assert.h>
 #include <chrono>
+#include <complex>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,7 +104,7 @@ template <> class Comparator<float> {
     }
 };
 
-static void vecadd_cpu(TYPE *C, const TYPE *A, const TYPE *B, int N) {
+static void fft_cpu(TYPE *C, const TYPE *A, const TYPE *B, int N) {
     for (int i = 0; i < N; ++i) {
         C[i] = A[i] + B[i];
     }
@@ -253,7 +254,7 @@ int main(int argc, char **argv) {
 
     printf("Verify result\n");
     std::vector<TYPE> h_ref(size);
-    vecadd_cpu(h_ref.data(), h_a.data(), h_b.data(), size);
+    fft_cpu(h_ref.data(), h_a.data(), h_b.data(), size);
     int errors = 0;
     for (uint32_t i = 0; i < size; ++i) {
         if (!Comparator<TYPE>::compare(h_c[i], h_ref[i], i, errors)) {

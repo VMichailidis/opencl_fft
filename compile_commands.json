@@ -1,6 +1,6 @@
 [
  {
-  "directory": "/home/basil/scratchback/vortex-container/container/vortex/build/tests/opencl/small_fft",
+  "directory": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/small_fft",
   "arguments": [
    "g++",
    "-std=c++17",
