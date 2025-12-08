@@ -1,24 +1,50 @@
 [
- {
-  "directory": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/small_fft",
-  "arguments": [
-   "g++",
-   "-std=c++17",
-   "-Wall",
-   "-Wextra",
-   "-Wfatal-errors",
-   "-Wno-deprecated-declarations",
-   "-Wno-unused-parameter",
-   "-Wno-narrowing",
-   "-pthread",
-   "-I/home/basil/scratchback/vortex-container/container/root/tools/pocl/include",
-   "-O2",
-   "-DNDEBUG",
-   "-MM",
-   "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/small_fft/main.cc",
-   ".depend"
-  ],
-  "file": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/small_fft/main.cc"
- }
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-std=c++17",
+      "-Wall",
+      "-Wextra",
+      "-Wfatal-errors",
+      "-Wno-deprecated-declarations",
+      "-Wno-unused-parameter",
+      "-Wno-narrowing",
+      "-pthread",
+      "-I/home/basil/scratchback/vortex-container/container/root/tools/pocl/include",
+      "-I/home/basil/scratchback/vortex-container/container/root/tools/libc32/include",
+      "-O2",
+      "-DNDEBUG",
+      "-c",
+      "-o",
+      "main.cc.o",
+      "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/main.cc"
+    ],
+    "directory": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft",
+    "file": "/home/basil/scratchback/vortex-container/container/vortex/opencl/opencl_fft/main.cc",
+    "output": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/main.cc.o"
+  },
+  {
+    "arguments": [
+      "/home/basil/scratchback/vortex-container/container/usr/bin/g++",
+      "-std=c++17",
+      "-Wall",
+      "-Wextra",
+      "-Wfatal-errors",
+      "-Wno-deprecated-declarations",
+      "-Wno-unused-parameter",
+      "-Wno-narrowing",
+      "-pthread",
+      "-I/home/basil/scratchback/vortex-container/container/root/tools/pocl/include",
+      "-I/home/basil/scratchback/vortex-container/container/root/tools/libc32/include",
+      "-O2",
+      "-DNDEBUG",
+      "-c",
+      "-o",
+      "fft.cc.o",
+      "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/fft.cc"
+    ],
+    "directory": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft",
+    "file": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/fft.cc",
+    "output": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/fft.cc.o"
+  }
 ]
-
