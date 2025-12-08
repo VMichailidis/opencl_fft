@@ -1,11 +1,11 @@
 ROOT_DIR := $(realpath ../../..)
 include $(ROOT_DIR)/config.mk
 
-PROJECT := small_fft
+PROJECT := opencl_fft
 
 SRC_DIR := $(VORTEX_HOME)/tests/opencl/$(PROJECT)
 
-SRCS := $(SRC_DIR)/main.cc
+SRCS := $(SRC_DIR)/main.cc $(SRC_DIR)/fft.cc
 
 common.h: $(SRC_DIR)/common.h
 	cp $< $@
