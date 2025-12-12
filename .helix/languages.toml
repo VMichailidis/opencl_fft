@@ -1,5 +1,23 @@
+[[language]]
+name = "cpp"
+language-servers = [
+  "clangd",
+]
 [language-server.clangd]
-command = "clangd"
-args = ["--enable-config",
-        "--path-mappings=/=/home/basil/scratchback/vortex-container/container/"
-        ]
+command = "docker"
+# We use 'exec -i' to pipe stdin/stdout into the container
+args = [
+  "exec",
+  "-i",
+  "vortex-container",  # Your container name
+  "clangd",            # The command to run INSIDE the container
+  
+  # IMPORTANT: Map Host Path (Client) -> Container Path (Server)
+  "--path-mappings=/home/basil/scratchback/vortex-container/container/vortex=/vortex",
+  
+  "--background-index",
+  "--clang-tidy",
+  "--header-insertion=iwyu",
+  "--completion-style=detailed",
+  "--function-arg-placeholders"
+]

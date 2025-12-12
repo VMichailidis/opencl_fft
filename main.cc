@@ -104,12 +104,6 @@ template <> class Comparator<float> {
     }
 };
 
-static void fft_cpu(TYPE *C, const TYPE *A, const TYPE *B, int N) {
-    for (int i = 0; i < N; ++i) {
-        C[i] = A[i] + B[i];
-    }
-}
-
 cl_device_id device_id = NULL;
 cl_context context = NULL;
 cl_command_queue commandQueue = NULL;
@@ -213,14 +207,11 @@ int main(int argc, char **argv) {
         clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&c_memobj));
 
     // Allocate memories for input arrays and output arrays.
-    std::vector<TYPE> h_a(size);
-    std::vector<TYPE> h_b(size);
-    std::vector<TYPE> h_c(size);
+    std::vector<TYPE> h_s(size);
 
     // Generate input values
     for (uint32_t i = 0; i < size; ++i) {
-        h_a[i] = Comparator<TYPE>::generate();
-        h_b[i] = Comparator<TYPE>::generate();
+        h_s[i] = Comparator<TYPE>::generate();
     }
 
     // Creating command queue
@@ -229,9 +220,7 @@ int main(int argc, char **argv) {
 
     printf("Upload source buffers\n");
     CL_CHECK(clEnqueueWriteBuffer(commandQueue, a_memobj, CL_TRUE, 0,
-                                  nbytes, h_a.data(), 0, NULL, NULL));
-    CL_CHECK(clEnqueueWriteBuffer(commandQueue, b_memobj, CL_TRUE, 0,
-                                  nbytes, h_b.data(), 0, NULL, NULL));
+                                  nbytes, h_s.data(), 0, NULL, NULL));
 
     printf("Execute the kernel\n");
     size_t global_work_size[1] = {size};
@@ -254,7 +243,7 @@ int main(int argc, char **argv) {
 
     printf("Verify result\n");
     std::vector<TYPE> h_ref(size);
-    fft_cpu(h_ref.data(), h_a.data(), h_b.data(), size);
+    fft(h_ref.data(), h_s.data(), h_b.data(), size);
     int errors = 0;
     for (uint32_t i = 0; i < size; ++i) {
         if (!Comparator<TYPE>::compare(h_c[i], h_ref[i], i, errors)) {

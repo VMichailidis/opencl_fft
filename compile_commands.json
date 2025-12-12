@@ -10,22 +10,21 @@
       "-Wno-unused-parameter",
       "-Wno-narrowing",
       "-pthread",
-      "-I/home/basil/scratchback/vortex-container/container/root/tools/pocl/include",
-      "-I/home/basil/scratchback/vortex-container/container/root/tools/libc32/include",
+      "-I/root/tools/pocl/include",
       "-O2",
       "-DNDEBUG",
       "-c",
       "-o",
       "main.cc.o",
-      "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/main.cc"
+      "/vortex/tests/opencl/opencl_fft/main.cc"
     ],
-    "directory": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft",
-    "file": "/home/basil/scratchback/vortex-container/container/vortex/opencl/opencl_fft/main.cc",
-    "output": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/main.cc.o"
+    "directory": "/vortex/build/tests/opencl/opencl_fft",
+    "file": "/vortex/tests/opencl/opencl_fft/main.cc",
+    "output": "/vortex/build/tests/opencl/opencl_fft/main.cc.o"
   },
   {
     "arguments": [
-      "/home/basil/scratchback/vortex-container/container/usr/bin/g++",
+      "/usr/bin/g++",
       "-std=c++17",
       "-Wall",
       "-Wextra",
@@ -34,17 +33,16 @@
       "-Wno-unused-parameter",
       "-Wno-narrowing",
       "-pthread",
-      "-I/home/basil/scratchback/vortex-container/container/root/tools/pocl/include",
-      "-I/home/basil/scratchback/vortex-container/container/root/tools/libc32/include",
+      "-I/root/tools/pocl/include",
       "-O2",
       "-DNDEBUG",
       "-c",
       "-o",
       "fft.cc.o",
-      "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/fft.cc"
+      "/vortex/tests/opencl/opencl_fft/fft.cc"
     ],
-    "directory": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft",
-    "file": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/fft.cc",
-    "output": "/home/basil/scratchback/vortex-container/container/vortex/tests/opencl/opencl_fft/fft.cc.o"
+    "directory": "/vortex/build/tests/opencl/opencl_fft",
+    "file": "/vortex/tests/opencl/opencl_fft/fft.cc",
+    "output": "/vortex/build/tests/opencl/opencl_fft/fft.cc.o"
   }
 ]
