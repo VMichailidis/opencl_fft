@@ -1,6 +1,7 @@
 *
 !*/
-.cache/
+/.cache/
+!.gitignore
 !common.h
 !compile_commands.json
 !*.h
