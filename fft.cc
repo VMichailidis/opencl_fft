@@ -1,6 +1,6 @@
 // Modified version from here:
 // https://www.w3computing.com/articles/how-to-implement-a-fast-fourier-transform-fft-in-cpp/
-#include "fft.h"
+#include "fft.hpp"
 const double PI = acos(-1);
 
 int log_2(int x);

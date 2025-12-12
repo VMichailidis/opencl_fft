@@ -4,7 +4,7 @@
 !.gitignore
 !common.h
 !compile_commands.json
-!*.h
+!*.hpp
 !*.cc
 !*.cl
 !Makefile
