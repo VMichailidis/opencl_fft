@@ -81,18 +81,16 @@ void libra(CArray &s) {
     return;
 }
 
-// TODO: use old permutation algorithm as test.
-// TODO: find a way to decrement in reverse order
 void fft(CArray &s) {
-    size_t N = s.size();
+    const size_t N = s.size();
     if (N <= 1) {
         return;
     }
     libra(s);
-    // Iterative fft
+    // Iterative FFT
     for (size_t len = 2; len <= N; len <<= 1) {
         double angle = -2 * PI / len;
-        Complex wlen = (cos(angle), sin(angle));
+        Complex wlen(cos(angle), sin(angle));
         for (size_t i = 0; i < N; i += len) {
             Complex w(1);
             for (size_t j = 0; j < len / 2; ++j) {

@@ -1,1 +1,9 @@
-.cache
+*
+!*/
+.cache/
+!common.h
+!compile_commands.json
+!*.h
+!*.cc
+!*.cl
+!Makefile
