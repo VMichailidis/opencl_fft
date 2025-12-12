@@ -1,0 +1,5 @@
+[language-server.clangd]
+command = "clangd"
+args = ["--enable-config",
+        "--path-mappings=/=/home/basil/scratchback/vortex-container/container/"
+        ]

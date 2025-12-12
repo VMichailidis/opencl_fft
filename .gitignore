@@ -1,6 +1,6 @@
 *
 !*/
-/.cache/
+!.helix/*
 !.gitignore
 !common.h
 !compile_commands.json
