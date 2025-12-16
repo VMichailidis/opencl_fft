@@ -1,10 +1,9 @@
 
 #include "common.h"
 
-__kernel void vecadd (__global const TYPE *A,
-	                    __global const TYPE *B,
-	                    __global TYPE *C)
+__kernel void vecadd (__global TYPE * A)
 {
   int gid = get_global_id(0);
-  C[gid] = A[gid] + B[gid];
+  A[2*gid] = A[2*gid] + 2;
+  A[2*gid+sizeof(TYPE)] = A[gid+sizeof(TYPE)] + 2;
 }

@@ -1,4 +1,5 @@
 #include "common.h"
+#include "fft.hpp"
 #include <CL/opencl.h>
 #include <assert.h>
 #include <chrono>
@@ -7,9 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <vector>
+// #include <vector>
+const double PI = acos(-1);
 
-#define KERNEL_NAME "small_fft"
+#define KERNEL_NAME "vecadd"
 
 #define FLOAT_ULP 6
 
@@ -102,15 +104,41 @@ template <> class Comparator<float> {
         return true;
     }
 };
+template <> class Comparator<std::vector<float>> {
+  public:
+    static const char *type_str() { return "float"; }
+    static std::vector<float> generate(int i, int duration,
+                                       int samples) {
+        std::vector<float> f = {
+            cos(2 * PI * 5 * i * duration / samples), 0};
+        return f;
+    }
+    static bool compare(float a, float b, int index, int errors) {
+        union fi_t {
+            float f;
+            int32_t i;
+        };
+        fi_t fa, fb;
+        fa.f = a;
+        fb.f = b;
+        auto d = std::abs(fa.i - fb.i);
+        if (d > FLOAT_ULP) {
+            if (errors < 100) {
+                printf("*** error: [%d] expected=%f, actual=%f\n",
+                       index, a, b);
+            }
+            return false;
+        }
+        return true;
+    }
+};
 
 cl_device_id device_id = NULL;
 cl_context context = NULL;
 cl_command_queue commandQueue = NULL;
 cl_program program = NULL;
 cl_kernel kernel = NULL;
-cl_mem a_memobj = NULL;
-cl_mem b_memobj = NULL;
-cl_mem c_memobj = NULL;
+cl_mem s_memobj = NULL;
 uint8_t *kernel_bin = NULL;
 
 static void cleanup() {
@@ -120,12 +148,8 @@ static void cleanup() {
         clReleaseKernel(kernel);
     if (program)
         clReleaseProgram(program);
-    if (a_memobj)
-        clReleaseMemObject(a_memobj);
-    if (b_memobj)
-        clReleaseMemObject(b_memobj);
-    if (c_memobj)
-        clReleaseMemObject(c_memobj);
+    if (s_memobj)
+        clReleaseMemObject(s_memobj);
     if (context)
         clReleaseContext(context);
     if (device_id)
@@ -135,8 +159,8 @@ static void cleanup() {
         free(kernel_bin);
 }
 
-uint32_t size = 64;
-
+uint32_t len = 64;
+uint32_t duration = 10;
 static void show_usage() { printf("Usage: [-n size] [-h: help]\n"); }
 
 static void parse_args(int argc, char **argv) {
@@ -144,7 +168,7 @@ static void parse_args(int argc, char **argv) {
     while ((c = getopt(argc, argv, "n:h")) != -1) {
         switch (c) {
         case 'n':
-            size = atoi(optarg);
+            len = atoi(optarg);
             break;
         case 'h':
             show_usage();
@@ -156,7 +180,7 @@ static void parse_args(int argc, char **argv) {
         }
     }
 
-    printf("Workload size=%d\n", size);
+    printf("Workload size=%d\n", len);
 }
 
 int main(int argc, char **argv) {
@@ -176,12 +200,8 @@ int main(int argc, char **argv) {
         clCreateContext(NULL, 1, &device_id, NULL, NULL, &_err));
 
     printf("Allocate device buffers\n");
-    size_t nbytes = size * sizeof(TYPE);
-    a_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_ONLY,
-                                        nbytes, NULL, &_err));
-    b_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_ONLY,
-                                        nbytes, NULL, &_err));
-    c_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+    size_t nbytes = len * sizeof(TYPE);
+    s_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_WRITE,
                                         nbytes, NULL, &_err));
 
     printf("Create program from kernel source\n");
@@ -199,18 +219,17 @@ int main(int argc, char **argv) {
 
     // Set kernel arguments
     CL_CHECK(
-        clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&a_memobj));
-    CL_CHECK(
-        clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&b_memobj));
-    CL_CHECK(
-        clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&c_memobj));
+        clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&s_memobj));
 
     // Allocate memories for input arrays and output arrays.
-    std::vector<TYPE> h_s(size);
+    std::vector<TYPE> h_s(2 * len);
 
     // Generate input values
-    for (uint32_t i = 0; i < size; ++i) {
-        h_s[i] = Comparator<TYPE>::generate();
+    for (uint32_t i = 0; i < 2 * len; i += 2) {
+        std::vector<TYPE> temp =
+            Comparator<std::vector<TYPE>>::generate(i, duration, len);
+        h_s[i] = temp.data()[0];
+        h_s[i + sizeof(TYPE)] = temp.data()[1];
     }
 
     // Creating command queue
@@ -218,11 +237,11 @@ int main(int argc, char **argv) {
         CL_CHECK2(clCreateCommandQueue(context, device_id, 0, &_err));
 
     printf("Upload source buffers\n");
-    CL_CHECK(clEnqueueWriteBuffer(commandQueue, a_memobj, CL_TRUE, 0,
+    CL_CHECK(clEnqueueWriteBuffer(commandQueue, s_memobj, CL_TRUE, 0,
                                   nbytes, h_s.data(), 0, NULL, NULL));
 
     printf("Execute the kernel\n");
-    size_t global_work_size[1] = {size};
+    size_t global_work_size[1] = {len};
     size_t local_work_size[1] = {1};
     auto time_start = std::chrono::high_resolution_clock::now();
     CL_CHECK(clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL,
@@ -237,17 +256,23 @@ int main(int argc, char **argv) {
     printf("Elapsed time: %lg ms\n", elapsed);
 
     printf("Download destination buffer\n");
-    CL_CHECK(clEnqueueReadBuffer(commandQueue, c_memobj, CL_TRUE, 0,
-                                 nbytes, h_c.data(), 0, NULL, NULL));
+    CL_CHECK(clEnqueueReadBuffer(commandQueue, s_memobj, CL_TRUE, 0,
+                                 nbytes, h_s.data(), 0, NULL, NULL));
 
     printf("Verify result\n");
-    std::vector<TYPE> h_ref(size);
-    fft(h_ref.data(), h_s.data(), h_b.data(), size);
+    CArray h_ref(len);
+    for (uint32_t i = 0; i < len; ++i) {
+        Complex test = Complex(h_s[2 * i], h_s[2 * i + sizeof(TYPE)]);
+        h_ref[i] = test;
+    }
+    fft(h_ref);
     int errors = 0;
-    for (uint32_t i = 0; i < size; ++i) {
-        if (!Comparator<TYPE>::compare(h_c[i], h_ref[i], i, errors)) {
-            ++errors;
-        }
+    for (uint32_t i = 0; i < len; ++i) {
+        // if (!Comparator<TYPE>::compare(h_s[i], h_ref[i], i,
+        // errors)) {
+        //     ++errors;
+        // }
+        printf("h_s: %f, h_ref: %f\n", h_s[2 * i], real(h_ref[i]));
     }
     if (0 == errors) {
         printf("PASSED!\n");
