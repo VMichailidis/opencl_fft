@@ -2,7 +2,6 @@
 #include <CL/opencl.h>
 #include <assert.h>
 #include <chrono>
-#include <complex>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
