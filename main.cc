@@ -111,7 +111,7 @@ template <> class Comparator<std::vector<float>> {
                                        int samples) {
         std::vector<float> f = {
             // cos(2 * PI * 5 * i * duration / samples), 0};
-            1, 0};
+            (float)i, 0};
         return f;
     }
     static bool compare(float a, float b, int index, int errors) {
@@ -219,8 +219,11 @@ int main(int argc, char **argv) {
     kernel = CL_CHECK2(clCreateKernel(program, KERNEL_NAME, &_err));
 
     // Set kernel arguments
+    int side = 8;
     CL_CHECK(
         clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&s_memobj));
+    CL_CHECK(clSetKernelArg(kernel, 1, sizeof(int), (void *)&side));
+    CL_CHECK(clSetKernelArg(kernel, 2, sizeof(int), (void *)&side));
 
     // Allocate memories for input arrays and output arrays.
     std::vector<TYPE> h_s(2 * len);
