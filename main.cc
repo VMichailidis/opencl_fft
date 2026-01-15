@@ -11,7 +11,7 @@
 // #include <vector>
 const double PI = acos(-1);
 
-#define KERNEL_NAME "vecadd"
+#define KERNEL_NAME "fft_gpu"
 
 #define FLOAT_ULP 6
 
@@ -110,7 +110,8 @@ template <> class Comparator<std::vector<float>> {
     static std::vector<float> generate(int i, int duration,
                                        int samples) {
         std::vector<float> f = {
-            cos(2 * PI * 5 * i * duration / samples), 0};
+            // cos(2 * PI * 5 * i * duration / samples), 0};
+            1, 0};
         return f;
     }
     static bool compare(float a, float b, int index, int errors) {
@@ -200,7 +201,7 @@ int main(int argc, char **argv) {
         clCreateContext(NULL, 1, &device_id, NULL, NULL, &_err));
 
     printf("Allocate device buffers\n");
-    size_t nbytes = len * sizeof(TYPE);
+    size_t nbytes = 2 * len * sizeof(TYPE);
     s_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_WRITE,
                                         nbytes, NULL, &_err));
 
@@ -229,7 +230,12 @@ int main(int argc, char **argv) {
         std::vector<TYPE> temp =
             Comparator<std::vector<TYPE>>::generate(i, duration, len);
         h_s[i] = temp.data()[0];
-        h_s[i + sizeof(TYPE)] = temp.data()[1];
+        h_s[i + 1] = temp.data()[1];
+    }
+    CArray h_ref(len);
+    for (uint32_t i = 0; i < len; ++i) {
+        Complex tmp = Complex(h_s[2 * i], h_s[2 * i + 1]);
+        h_ref[i] = tmp;
     }
 
     // Creating command queue
@@ -260,11 +266,6 @@ int main(int argc, char **argv) {
                                  nbytes, h_s.data(), 0, NULL, NULL));
 
     printf("Verify result\n");
-    CArray h_ref(len);
-    for (uint32_t i = 0; i < len; ++i) {
-        Complex test = Complex(h_s[2 * i], h_s[2 * i + sizeof(TYPE)]);
-        h_ref[i] = test;
-    }
     fft(h_ref);
     int errors = 0;
     for (uint32_t i = 0; i < len; ++i) {
