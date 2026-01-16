@@ -88,18 +88,18 @@ void fft(CArray &s) {
     }
     libra(s);
     // Iterative FFT
-    for (size_t len = 2; len <= N; len <<= 1) {
-        double angle = -2 * PI / len;
-        Complex wlen(cos(angle), sin(angle));
-        for (size_t i = 0; i < N; i += len) {
-            Complex w(1);
-            for (size_t j = 0; j < len / 2; ++j) {
-                Complex u = s[i + j];
-                Complex v = s[i + j + len / 2] * w;
-                s[i + j] = u + v;
-                s[i + j + len / 2] = u - v;
-                w *= wlen;
-            }
-        }
-    }
+    // for (size_t len = 2; len <= N; len <<= 1) {
+    //     double angle = -2 * PI / len;
+    //     Complex wlen(cos(angle), sin(angle));
+    //     for (size_t i = 0; i < N; i += len) {
+    //         Complex w(1);
+    //         for (size_t j = 0; j < len / 2; ++j) {
+    //             Complex u = s[i + j];
+    //             Complex v = s[i + j + len / 2] * w;
+    //             s[i + j] = u + v;
+    //             s[i + j + len / 2] = u - v;
+    //             w *= wlen;
+    //         }
+    //     }
+    // }
 }

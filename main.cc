@@ -1,3 +1,4 @@
+#include "CL/cl.h"
 #include "common.h"
 #include "fft.hpp"
 #include <CL/opencl.h>
@@ -111,7 +112,7 @@ template <> class Comparator<std::vector<float>> {
                                        int samples) {
         std::vector<float> f = {
             // cos(2 * PI * 5 * i * duration / samples), 0};
-            (float)i, 0};
+            (float)i / 2.0, (float)i / 2.0};
         return f;
     }
     static bool compare(float a, float b, int index, int errors) {
@@ -136,15 +137,15 @@ template <> class Comparator<std::vector<float>> {
 
 cl_device_id device_id = NULL;
 cl_context context = NULL;
-cl_command_queue commandQueue = NULL;
+cl_command_queue command_queue = NULL;
 cl_program program = NULL;
 cl_kernel kernel = NULL;
 cl_mem s_memobj = NULL;
 uint8_t *kernel_bin = NULL;
 
 static void cleanup() {
-    if (commandQueue)
-        clReleaseCommandQueue(commandQueue);
+    if (command_queue)
+        clReleaseCommandQueue(command_queue);
     if (kernel)
         clReleaseKernel(kernel);
     if (program)
@@ -160,7 +161,139 @@ static void cleanup() {
         free(kernel_bin);
 }
 
-uint32_t len = 64;
+static void init_gpu(cl_platform_id *platform_id,
+                     cl_device_id *device_id, cl_context *context,
+                     cl_command_queue *command_queue) {
+
+    // Getting platform and device information
+    CL_CHECK(clGetPlatformIDs(1, platform_id, NULL));
+    CL_CHECK(clGetDeviceIDs(*platform_id, CL_DEVICE_TYPE_DEFAULT, 1,
+                            device_id, NULL));
+
+    printf("Create context\n");
+    *context = CL_CHECK2(
+        clCreateContext(NULL, 1, device_id, NULL, NULL, &_err));
+    *command_queue = CL_CHECK2(
+        clCreateCommandQueue(*context, *device_id, 0, &_err));
+}
+
+static double benchmark_fft(cl_device_id *device_id,
+                            cl_command_queue *command_queue,
+                            TYPE *data, size_t len) {
+    // Init buffer
+    size_t nbytes = len * sizeof(TYPE);
+    s_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_WRITE,
+                                        nbytes, NULL, &_err));
+
+    printf("Create program from kernel source\n");
+    size_t kernel_size;
+    if (0 != read_kernel_file("kernel.cl", &kernel_bin, &kernel_size))
+        return -1.0;
+    program = CL_CHECK2(clCreateProgramWithSource(
+        context, 1, (const char **)&kernel_bin, &kernel_size, &_err));
+
+    // Build program
+    CL_CHECK(clBuildProgram(program, 1, device_id, NULL, NULL, NULL));
+
+    // Create kernel
+    kernel = CL_CHECK2(clCreateKernel(program, KERNEL_NAME, &_err));
+
+    // Calculate correct kernel arguements
+    size_t word_width = log2(len) - 1;
+    size_t half_width = word_width / 2;
+    size_t hlen = 1 << half_width;
+    //
+
+    // Set kernel arguments
+    CL_CHECK(
+        clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&s_memobj));
+    CL_CHECK(clSetKernelArg(kernel, 1, sizeof(int), (void *)&hlen));
+    CL_CHECK(
+        clSetKernelArg(kernel, 2, sizeof(int), (void *)&half_width));
+    printf("Upload source buffers\n");
+    CL_CHECK(clEnqueueWriteBuffer(*command_queue, s_memobj, CL_TRUE,
+                                  0, nbytes, data, 0, NULL, NULL));
+
+    printf("Execute the kernel\n");
+    size_t global_work_size[1] = {hlen};
+    size_t local_work_size[1] = {1};
+    auto time_start = std::chrono::high_resolution_clock::now();
+    CL_CHECK(clEnqueueNDRangeKernel(*command_queue, kernel, 1, NULL,
+                                    global_work_size, local_work_size,
+                                    0, NULL, NULL));
+    CL_CHECK(clFinish(*command_queue));
+    auto time_end = std::chrono::high_resolution_clock::now();
+
+    double elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            time_end - time_start)
+            .count();
+
+    printf("Download destination buffer\n");
+    CL_CHECK(clEnqueueReadBuffer(*command_queue, s_memobj, CL_TRUE, 0,
+                                 nbytes, data, 0, NULL, NULL));
+    return elapsed;
+}
+
+static double benchmark_fft_vanilla(cl_device_id *device_id,
+                                    cl_command_queue *command_queue,
+                                    TYPE *data, size_t len) {
+    // Init buffer
+    size_t nbytes = len * sizeof(TYPE);
+    s_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_WRITE,
+                                        nbytes, NULL, &_err));
+
+    printf("Create program from kernel source\n");
+    size_t kernel_size;
+    if (0 != read_kernel_file("kernel.cl", &kernel_bin, &kernel_size))
+        return -1.0;
+    program = CL_CHECK2(clCreateProgramWithSource(
+        context, 1, (const char **)&kernel_bin, &kernel_size, &_err));
+
+    // Build program
+    CL_CHECK(clBuildProgram(program, 1, device_id, NULL, NULL, NULL));
+
+    // Create kernel
+    kernel =
+        CL_CHECK2(clCreateKernel(program, "fft_gpu_vanilla", &_err));
+
+    // Calculate correct kernel arguements
+    int word_width = log2(len) - 1;
+    printf("word width: %d", word_width);
+    // size_t word_width = 6;
+
+    // Set kernel arguments
+    CL_CHECK(
+        clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&s_memobj));
+    CL_CHECK(clSetKernelArg(kernel, 1, sizeof(int), (void *)&len));
+    CL_CHECK(
+        clSetKernelArg(kernel, 2, sizeof(int), (void *)&word_width));
+    printf("Upload source buffers\n");
+    CL_CHECK(clEnqueueWriteBuffer(*command_queue, s_memobj, CL_TRUE,
+                                  0, nbytes, data, 0, NULL, NULL));
+
+    printf("Execute the kernel\n");
+    size_t global_work_size[1] = {len};
+    size_t local_work_size[1] = {1};
+    auto time_start = std::chrono::high_resolution_clock::now();
+    CL_CHECK(clEnqueueNDRangeKernel(*command_queue, kernel, 1, NULL,
+                                    global_work_size, local_work_size,
+                                    0, NULL, NULL));
+    CL_CHECK(clFinish(*command_queue));
+    auto time_end = std::chrono::high_resolution_clock::now();
+
+    double elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            time_end - time_start)
+            .count();
+
+    printf("Download destination buffer\n");
+    CL_CHECK(clEnqueueReadBuffer(*command_queue, s_memobj, CL_TRUE, 0,
+                                 nbytes, data, 0, NULL, NULL));
+    return elapsed;
+}
+
+uint32_t len = 1024; //
 uint32_t duration = 10;
 static void show_usage() { printf("Usage: [-n size] [-h: help]\n"); }
 
@@ -189,46 +322,11 @@ int main(int argc, char **argv) {
     parse_args(argc, argv);
 
     cl_platform_id platform_id;
-    size_t kernel_size;
+    init_gpu(&platform_id, &device_id, &context, &command_queue);
 
-    // Getting platform and device information
-    CL_CHECK(clGetPlatformIDs(1, &platform_id, NULL));
-    CL_CHECK(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, 1,
-                            &device_id, NULL));
-
-    printf("Create context\n");
-    context = CL_CHECK2(
-        clCreateContext(NULL, 1, &device_id, NULL, NULL, &_err));
-
-    printf("Allocate device buffers\n");
-    size_t nbytes = 2 * len * sizeof(TYPE);
-    s_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_WRITE,
-                                        nbytes, NULL, &_err));
-
-    printf("Create program from kernel source\n");
-    if (0 != read_kernel_file("kernel.cl", &kernel_bin, &kernel_size))
-        return -1;
-    program = CL_CHECK2(clCreateProgramWithSource(
-        context, 1, (const char **)&kernel_bin, &kernel_size, &_err));
-
-    // Build program
-    CL_CHECK(
-        clBuildProgram(program, 1, &device_id, NULL, NULL, NULL));
-
-    // Create kernel
-    kernel = CL_CHECK2(clCreateKernel(program, KERNEL_NAME, &_err));
-
-    // Set kernel arguments
-    int side = 8;
-    CL_CHECK(
-        clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&s_memobj));
-    CL_CHECK(clSetKernelArg(kernel, 1, sizeof(int), (void *)&side));
-    CL_CHECK(clSetKernelArg(kernel, 2, sizeof(int), (void *)&side));
-
-    // Allocate memories for input arrays and output arrays.
-    std::vector<TYPE> h_s(2 * len);
 
     // Generate input values
+    std::vector<TYPE> h_s(2 * len);
     for (uint32_t i = 0; i < 2 * len; i += 2) {
         std::vector<TYPE> temp =
             Comparator<std::vector<TYPE>>::generate(i, duration, len);
@@ -241,42 +339,25 @@ int main(int argc, char **argv) {
         h_ref[i] = tmp;
     }
 
-    // Creating command queue
-    commandQueue =
-        CL_CHECK2(clCreateCommandQueue(context, device_id, 0, &_err));
-
-    printf("Upload source buffers\n");
-    CL_CHECK(clEnqueueWriteBuffer(commandQueue, s_memobj, CL_TRUE, 0,
-                                  nbytes, h_s.data(), 0, NULL, NULL));
-
-    printf("Execute the kernel\n");
-    size_t global_work_size[1] = {len};
-    size_t local_work_size[1] = {1};
-    auto time_start = std::chrono::high_resolution_clock::now();
-    CL_CHECK(clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL,
-                                    global_work_size, local_work_size,
-                                    0, NULL, NULL));
-    CL_CHECK(clFinish(commandQueue));
-    auto time_end = std::chrono::high_resolution_clock::now();
-    double elapsed =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            time_end - time_start)
-            .count();
+    // Benchmark
+    double elapsed = benchmark_fft(&device_id, &command_queue,
+                                           h_s.data(), h_s.size());
+    if (elapsed == -1.0)
+        return -1;
     printf("Elapsed time: %lg ms\n", elapsed);
 
-    printf("Download destination buffer\n");
-    CL_CHECK(clEnqueueReadBuffer(commandQueue, s_memobj, CL_TRUE, 0,
-                                 nbytes, h_s.data(), 0, NULL, NULL));
-
     printf("Verify result\n");
+
+    // Validate
     fft(h_ref);
     int errors = 0;
     for (uint32_t i = 0; i < len; ++i) {
-        // if (!Comparator<TYPE>::compare(h_s[i], h_ref[i], i,
-        // errors)) {
-        //     ++errors;
-        // }
-        printf("h_s: %f, h_ref: %f\n", h_s[2 * i], real(h_ref[i]));
+        if (!Comparator<TYPE>::compare(h_s[2 * i], real(h_ref[i]), i,
+                                       errors) ||
+            !Comparator<TYPE>::compare(h_s[2 * i + 1], imag(h_ref[i]),
+                                       i, errors)) {
+            ++errors;
+        }
     }
     if (0 == errors) {
         printf("PASSED!\n");
