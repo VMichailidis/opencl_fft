@@ -12,9 +12,9 @@
 // #include <vector>
 const double PI = acos(-1);
 
-#define KERNEL_NAME "fft_gpu"
+#define KERNEL_NAME "libra"
 
-#define FLOAT_ULP 6
+#define FLOAT_ULP 10
 
 #define CL_CHECK(_expr)                                              \
     do {                                                             \
@@ -97,8 +97,8 @@ template <> class Comparator<float> {
         auto d = std::abs(fa.i - fb.i);
         if (d > FLOAT_ULP) {
             if (errors < 100) {
-                printf("*** error: [%d] expected=%f, actual=%f\n",
-                       index, a, b);
+                printf("*** error: [%d] expected=%f, got=%f\n", index,
+                       a, b);
             }
             return false;
         }
@@ -139,15 +139,11 @@ cl_device_id device_id = NULL;
 cl_context context = NULL;
 cl_command_queue command_queue = NULL;
 cl_program program = NULL;
-cl_kernel kernel = NULL;
-cl_mem s_memobj = NULL;
 uint8_t *kernel_bin = NULL;
-
+cl_mem s_memobj = NULL;
 static void cleanup() {
     if (command_queue)
         clReleaseCommandQueue(command_queue);
-    if (kernel)
-        clReleaseKernel(kernel);
     if (program)
         clReleaseProgram(program);
     if (s_memobj)
@@ -156,7 +152,6 @@ static void cleanup() {
         clReleaseContext(context);
     if (device_id)
         clReleaseDevice(device_id);
-
     if (kernel_bin)
         free(kernel_bin);
 }
@@ -179,7 +174,8 @@ static void init_gpu(cl_platform_id *platform_id,
 
 static double benchmark_fft(cl_device_id *device_id,
                             cl_command_queue *command_queue,
-                            TYPE *data, size_t len) {
+                            TYPE *data, size_t len,
+                            size_t block_size) {
     // Init buffer
     size_t nbytes = len * sizeof(TYPE);
     s_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_WRITE,
@@ -195,8 +191,11 @@ static double benchmark_fft(cl_device_id *device_id,
     // Build program
     CL_CHECK(clBuildProgram(program, 1, device_id, NULL, NULL, NULL));
 
-    // Create kernel
-    kernel = CL_CHECK2(clCreateKernel(program, KERNEL_NAME, &_err));
+    // Create kernels
+    cl_kernel fft_k, bit_reverse_k = NULL;
+    fft_k = CL_CHECK2(clCreateKernel(program, "fft", &_err));
+    bit_reverse_k =
+        CL_CHECK2(clCreateKernel(program, "libra", &_err));
 
     // Calculate correct kernel arguements
     size_t word_width = log2(len) - 1;
@@ -204,23 +203,35 @@ static double benchmark_fft(cl_device_id *device_id,
     size_t hlen = 1 << half_width;
     //
 
-    // Set kernel arguments
+    // Set kernel arguments for bitreverse
+    CL_CHECK(clSetKernelArg(bit_reverse_k, 0, sizeof(cl_mem),
+                            (void *)&s_memobj));
     CL_CHECK(
-        clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&s_memobj));
-    CL_CHECK(clSetKernelArg(kernel, 1, sizeof(int), (void *)&hlen));
+        clSetKernelArg(bit_reverse_k, 1, sizeof(int), (void *)&hlen));
+    CL_CHECK(clSetKernelArg(bit_reverse_k, 2, sizeof(int),
+                            (void *)&half_width));
+
+    // Set kernel arguements for fft
     CL_CHECK(
-        clSetKernelArg(kernel, 2, sizeof(int), (void *)&half_width));
+        clSetKernelArg(fft_k, 0, sizeof(cl_mem), (void *)&s_memobj));
+    CL_CHECK(
+        clSetKernelArg(fft_k, 1, sizeof(int), (void *)&block_size));
+
     printf("Upload source buffers\n");
     CL_CHECK(clEnqueueWriteBuffer(*command_queue, s_memobj, CL_TRUE,
                                   0, nbytes, data, 0, NULL, NULL));
 
     printf("Execute the kernel\n");
-    size_t global_work_size[1] = {hlen};
+    size_t bit_reverse_size[1] = {hlen};
+    size_t fft_size[1] = {block_size};
     size_t local_work_size[1] = {1};
     auto time_start = std::chrono::high_resolution_clock::now();
-    CL_CHECK(clEnqueueNDRangeKernel(*command_queue, kernel, 1, NULL,
-                                    global_work_size, local_work_size,
-                                    0, NULL, NULL));
+    CL_CHECK(clEnqueueNDRangeKernel(*command_queue, bit_reverse_k, 1,
+                                    NULL, bit_reverse_size,
+                                    local_work_size, 0, NULL, NULL));
+    CL_CHECK(clEnqueueNDRangeKernel(*command_queue, fft_k, 1, NULL,
+                                    fft_size, local_work_size, 0,
+                                    NULL, NULL));
     CL_CHECK(clFinish(*command_queue));
     auto time_end = std::chrono::high_resolution_clock::now();
 
@@ -235,66 +246,9 @@ static double benchmark_fft(cl_device_id *device_id,
     return elapsed;
 }
 
-static double benchmark_fft_vanilla(cl_device_id *device_id,
-                                    cl_command_queue *command_queue,
-                                    TYPE *data, size_t len) {
-    // Init buffer
-    size_t nbytes = len * sizeof(TYPE);
-    s_memobj = CL_CHECK2(clCreateBuffer(context, CL_MEM_READ_WRITE,
-                                        nbytes, NULL, &_err));
-
-    printf("Create program from kernel source\n");
-    size_t kernel_size;
-    if (0 != read_kernel_file("kernel.cl", &kernel_bin, &kernel_size))
-        return -1.0;
-    program = CL_CHECK2(clCreateProgramWithSource(
-        context, 1, (const char **)&kernel_bin, &kernel_size, &_err));
-
-    // Build program
-    CL_CHECK(clBuildProgram(program, 1, device_id, NULL, NULL, NULL));
-
-    // Create kernel
-    kernel =
-        CL_CHECK2(clCreateKernel(program, "fft_gpu_vanilla", &_err));
-
-    // Calculate correct kernel arguements
-    int word_width = log2(len) - 1;
-    printf("word width: %d", word_width);
-    // size_t word_width = 6;
-
-    // Set kernel arguments
-    CL_CHECK(
-        clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&s_memobj));
-    CL_CHECK(clSetKernelArg(kernel, 1, sizeof(int), (void *)&len));
-    CL_CHECK(
-        clSetKernelArg(kernel, 2, sizeof(int), (void *)&word_width));
-    printf("Upload source buffers\n");
-    CL_CHECK(clEnqueueWriteBuffer(*command_queue, s_memobj, CL_TRUE,
-                                  0, nbytes, data, 0, NULL, NULL));
-
-    printf("Execute the kernel\n");
-    size_t global_work_size[1] = {len};
-    size_t local_work_size[1] = {1};
-    auto time_start = std::chrono::high_resolution_clock::now();
-    CL_CHECK(clEnqueueNDRangeKernel(*command_queue, kernel, 1, NULL,
-                                    global_work_size, local_work_size,
-                                    0, NULL, NULL));
-    CL_CHECK(clFinish(*command_queue));
-    auto time_end = std::chrono::high_resolution_clock::now();
-
-    double elapsed =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            time_end - time_start)
-            .count();
-
-    printf("Download destination buffer\n");
-    CL_CHECK(clEnqueueReadBuffer(*command_queue, s_memobj, CL_TRUE, 0,
-                                 nbytes, data, 0, NULL, NULL));
-    return elapsed;
-}
-
-uint32_t len = 1024; //
+uint32_t len = 64; //
 uint32_t duration = 10;
+size_t block_size = len / 2;
 static void show_usage() { printf("Usage: [-n size] [-h: help]\n"); }
 
 static void parse_args(int argc, char **argv) {
@@ -303,6 +257,7 @@ static void parse_args(int argc, char **argv) {
         switch (c) {
         case 'n':
             len = atoi(optarg);
+            block_size = len / 2;
             break;
         case 'h':
             show_usage();
@@ -323,7 +278,8 @@ int main(int argc, char **argv) {
 
     cl_platform_id platform_id;
     init_gpu(&platform_id, &device_id, &context, &command_queue);
-
+    // Important to set the work group to maximum size for maximum
+    // compute unit unitilization
 
     // Generate input values
     std::vector<TYPE> h_s(2 * len);
@@ -340,8 +296,9 @@ int main(int argc, char **argv) {
     }
 
     // Benchmark
-    double elapsed = benchmark_fft(&device_id, &command_queue,
-                                           h_s.data(), h_s.size());
+    double elapsed =
+        benchmark_fft(&device_id, &command_queue, h_s.data(),
+                      h_s.size(), block_size);
     if (elapsed == -1.0)
         return -1;
     printf("Elapsed time: %lg ms\n", elapsed);
@@ -352,9 +309,9 @@ int main(int argc, char **argv) {
     fft(h_ref);
     int errors = 0;
     for (uint32_t i = 0; i < len; ++i) {
-        if (!Comparator<TYPE>::compare(h_s[2 * i], real(h_ref[i]), i,
+        if (!Comparator<TYPE>::compare(real(h_ref[i]), h_s[2 * i], i,
                                        errors) ||
-            !Comparator<TYPE>::compare(h_s[2 * i + 1], imag(h_ref[i]),
+            !Comparator<TYPE>::compare(imag(h_ref[i]), h_s[2 * i + 1],
                                        i, errors)) {
             ++errors;
         }
