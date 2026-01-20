@@ -94,7 +94,7 @@ template <> class Comparator<float> {
         fi_t fa, fb;
         fa.f = a;
         fb.f = b;
-        auto d = std::abs(fa.i - fb.i);
+        auto d = std::abs(fa.f - fb.f);
         if (d > FLOAT_ULP) {
             if (errors < 100) {
                 printf("*** error: [%d] expected=%f, got=%f\n", index,
@@ -111,8 +111,9 @@ template <> class Comparator<std::vector<float>> {
     static std::vector<float> generate(int i, int duration,
                                        int samples) {
         std::vector<float> f = {
-            // cos(2 * PI * 5 * i * duration / samples), 0};
-            (float)i / 2.0, (float)i / 2.0};
+            cos(2.0 * PI * 5.0 * (float)i * (float)duration / (float)samples),
+            sin(2.0 * PI * 5.0 * (float)i * (float)duration / (float)samples)};
+        //         0.0, 0.0};
         return f;
     }
     static bool compare(float a, float b, int index, int errors) {
@@ -123,7 +124,7 @@ template <> class Comparator<std::vector<float>> {
         fi_t fa, fb;
         fa.f = a;
         fb.f = b;
-        auto d = std::abs(fa.i - fb.i);
+        auto d = std::abs(fa.f - fb.f);
         if (d > FLOAT_ULP) {
             if (errors < 100) {
                 printf("*** error: [%d] expected=%f, actual=%f\n",
