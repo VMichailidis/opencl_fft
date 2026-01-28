@@ -261,7 +261,7 @@ static void parse_args(int argc, char **argv) {
         case 'n':
             len = atoi(optarg);
             block_size = len / 2;
-            printf("Got arg %d\n", len);
+            printf("Got args %d, %d\n", len, block_size);
             break;
         case 'h':
             show_usage();
