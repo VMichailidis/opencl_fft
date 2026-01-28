@@ -111,8 +111,10 @@ template <> class Comparator<std::vector<float>> {
     static std::vector<float> generate(int i, int duration,
                                        int samples) {
         std::vector<float> f = {
-            cos(2.0 * PI * 5.0 * (float)i * (float)duration / (float)samples),
-            sin(2.0 * PI * 5.0 * (float)i * (float)duration / (float)samples)};
+            cos(2.0 * PI * 5.0 * (float)i * (float)duration /
+                (float)samples),
+            sin(2.0 * PI * 5.0 * (float)i * (float)duration /
+                (float)samples)};
         //         0.0, 0.0};
         return f;
     }
@@ -259,6 +261,7 @@ static void parse_args(int argc, char **argv) {
         case 'n':
             len = atoi(optarg);
             block_size = len / 2;
+            printf("Got arg %d\n", len);
             break;
         case 'h':
             show_usage();
