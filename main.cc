@@ -206,7 +206,7 @@ static double benchmark_fft(cl_device_id *device_id,
 
     // Create kernels
     cl_kernel fft_k, bit_reverse_k = NULL;
-    fft_k = CL_CHECK2(clCreateKernel(program, "fft", &_err));
+    fft_k = CL_CHECK2(clCreateKernel(program, "fft_layer", &_err));
     bit_reverse_k =
         CL_CHECK2(clCreateKernel(program, "bit_reverse", &_err));
 
@@ -235,16 +235,21 @@ static double benchmark_fft(cl_device_id *device_id,
                                   0, nbytes, data, 0, NULL, NULL));
 
     printf("Execute the kernel\n");
-    size_t bit_reverse_size[1] = {block_size};
+    size_t bit_reverse_size[1] = {2 * block_size};
     size_t fft_size[1] = {block_size};
-    size_t local_work_size[1] = {1};
+    size_t local_work_size[1] = {(size_t)16};
     auto time_start = std::chrono::high_resolution_clock::now();
     CL_CHECK(clEnqueueNDRangeKernel(*command_queue, bit_reverse_k, 1,
                                     NULL, bit_reverse_size,
                                     local_work_size, 0, NULL, NULL));
-    CL_CHECK(clEnqueueNDRangeKernel(*command_queue, fft_k, 1, NULL,
-                                    fft_size, local_work_size, 0,
-                                    NULL, NULL));
+    for (int stride = 2; stride <= block_size; stride <<= 1) {
+        CL_CHECK(
+            clSetKernelArg(fft_k, 2, sizeof(int), (void *)&stride));
+
+        CL_CHECK(clEnqueueNDRangeKernel(
+            *command_queue, fft_k, 1, NULL, fft_size, local_work_size,
+            0, NULL, NULL));
+    }
     CL_CHECK(clFinish(*command_queue));
     auto time_end = std::chrono::high_resolution_clock::now();
 

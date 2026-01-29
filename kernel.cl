@@ -52,6 +52,28 @@ __kernel void fft (__global TYPE * A, int len){
     A[2*(group + offset + (stride / 2)) + 1] = u_i - c_i;
   }
 }
+__kernel void fft_layer (__global TYPE * A, int len, int stride){
+  // inspired by https://github.com/dimitarkyurtov/fft-gpu/blob/main/src/opencl/fft.cpp#L8
+  int gid = get_global_id(0);
+  int group = gid / (stride / 2) * stride;
+  int offset = gid % (stride / 2);
+  TYPE angle = -2 * PI * offset /stride;
+  TYPE W_r = cos(angle);
+  TYPE W_i = sin(angle);
+
+  TYPE u_r = A[2*(group + offset)];
+  TYPE u_i = A[2*(group + offset) + 1];
+  TYPE v_r = A[2*(group + offset + (stride / 2))];
+  TYPE v_i = A[2*(group + offset + (stride / 2)) + 1];
+
+  TYPE c_r = W_r * v_r - W_i * v_i;
+  TYPE c_i = W_r * v_i + W_i * v_r;
+
+  A[2*(group + offset)] = u_r + c_r;
+  A[2*(group + offset) + 1] = u_i + c_i;
+  A[2*(group + offset + (stride / 2))] = u_r - c_r;
+  A[2*(group + offset + (stride / 2)) + 1] = u_i - c_i;
+}
 int reverse(int x, int w) {
   int reversed = 0;
   for (int j = 0; j < w; j++) // log2(N) = 3 bits needed to represent indices
