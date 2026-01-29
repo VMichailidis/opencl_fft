@@ -86,7 +86,8 @@ template <> class Comparator<float> {
     static int generate() {
         return static_cast<float>(rand()) / RAND_MAX;
     }
-    static bool compare(float a, float b, int index, int errors) {
+    static bool compare(float a, float b, int index, int errors,
+                        int real_or_imag) {
         union fi_t {
             float f;
             int32_t i;
@@ -97,8 +98,17 @@ template <> class Comparator<float> {
         auto d = std::abs(fa.f - fb.f);
         if (d > FLOAT_ULP) {
             if (errors < 100) {
-                printf("*** error: [%d] expected=%f, got=%f\n", index,
-                       a, b);
+                switch (real_or_imag) {
+                case 0:
+                    printf("*** error on real part: [%d] "
+                           "expected=%f, got=%f\n",
+                           index, a, b);
+                    break;
+                case 1:
+                    printf("*** error on imag part: [%d] "
+                           "expected=%f, got=%f\n",
+                           index, a, b);
+                }
             }
             return false;
         }
@@ -198,7 +208,7 @@ static double benchmark_fft(cl_device_id *device_id,
     cl_kernel fft_k, bit_reverse_k = NULL;
     fft_k = CL_CHECK2(clCreateKernel(program, "fft", &_err));
     bit_reverse_k =
-        CL_CHECK2(clCreateKernel(program, "libra", &_err));
+        CL_CHECK2(clCreateKernel(program, "bit_reverse", &_err));
 
     // Calculate correct kernel arguements
     size_t word_width = log2(len) - 1;
@@ -212,7 +222,7 @@ static double benchmark_fft(cl_device_id *device_id,
     CL_CHECK(
         clSetKernelArg(bit_reverse_k, 1, sizeof(int), (void *)&hlen));
     CL_CHECK(clSetKernelArg(bit_reverse_k, 2, sizeof(int),
-                            (void *)&half_width));
+                            (void *)&word_width));
 
     // Set kernel arguements for fft
     CL_CHECK(
@@ -225,7 +235,7 @@ static double benchmark_fft(cl_device_id *device_id,
                                   0, nbytes, data, 0, NULL, NULL));
 
     printf("Execute the kernel\n");
-    size_t bit_reverse_size[1] = {hlen};
+    size_t bit_reverse_size[1] = {block_size};
     size_t fft_size[1] = {block_size};
     size_t local_work_size[1] = {1};
     auto time_start = std::chrono::high_resolution_clock::now();
@@ -314,9 +324,9 @@ int main(int argc, char **argv) {
     int errors = 0;
     for (uint32_t i = 0; i < len; ++i) {
         if (!Comparator<TYPE>::compare(real(h_ref[i]), h_s[2 * i], i,
-                                       errors) ||
+                                       errors, 0) ||
             !Comparator<TYPE>::compare(imag(h_ref[i]), h_s[2 * i + 1],
-                                       i, errors)) {
+                                       i, errors, 1)) {
             ++errors;
         }
     }
